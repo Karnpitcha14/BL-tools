@@ -3,7 +3,6 @@ import pandas as pd
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
-import anthropic
 import json
 import re
 import io
@@ -11,40 +10,51 @@ import os
 
 app = Flask(__name__)
 
-HTML = open('/home/claude/index.html').read()
+HTML = open('index.html').read()
 
 @app.route('/')
 def index():
     return HTML
 
+def parse_line_text(text):
+    items = []
+    current_team = 'UNKNOWN'
+    for line in text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        line_upper = line.upper()
+        if re.search(r'ทีม\s*FO|^FO\s*:|^FO$|FO\s+สรุป|สรุป.*FO', line_upper):
+            current_team = 'FO'
+            continue
+        if re.search(r'ทีม\s*MC|^MC\s*:|^MC$|MC\s+สรุป|สรุป.*MC', line_upper):
+            current_team = 'MC'
+            continue
+        sku_match = re.search(r'(\d[\d\s]{5,14}\d)', line)
+        if not sku_match:
+            continue
+        sku = re.sub(r'\s+', '', sku_match.group(1))
+        rest = line[sku_match.end():]
+        qty_match = re.search(r'[=\s\(]+(\d+)', rest)
+        if not qty_match:
+            continue
+        qty = int(qty_match.group(1))
+        team = current_team
+        if re.search(r'\bFO\b', line_upper):
+            team = 'FO'
+        elif re.search(r'\bMC\b', line_upper):
+            team = 'MC'
+        items.append({'sku': sku, 'qty': qty, 'team': team})
+    return items
+
 @app.route('/api/parse-line', methods=['POST'])
 def parse_line():
     text = request.json.get('text', '')
-    client = anthropic.Anthropic()
-    resp = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=1000,
-        messages=[{
-            "role": "user",
-            "content": f"""จากข้อความนี้ ดึง SKU, จำนวน และทีม (FO หรือ MC) ออกมา
-ข้อความ:
-{text}
-
-ตอบเป็น JSON array เท่านั้น ไม่ต้องมีอะไรอื่น รูปแบบ:
-[{{"sku":"030100296","qty":1,"team":"FO"}},...]
-
-กฎ:
-- ถ้าเจอ "ทีม FO" หรือ "FO" ก่อนรายการ = team FO
-- ถ้าเจอ "ทีม MC" หรือ "MC" ก่อนรายการ = team MC
-- ถ้าไม่ระบุ = "UNKNOWN"
-- qty เป็นตัวเลขเท่านั้น"""
-        }]
-    )
     try:
-        items = json.loads(resp.content[0].text)
+        items = parse_line_text(text)
         return jsonify({"ok": True, "items": items})
-    except:
-        return jsonify({"ok": False, "items": []})
+    except Exception as e:
+        return jsonify({"ok": False, "items": [], "error": str(e)})
 
 @app.route('/api/check-stock', methods=['POST'])
 def check_stock():
@@ -59,7 +69,6 @@ def check_stock():
     df_stock = pd.read_excel(stock_file, header=1, dtype={'Seller SKU': str})
     df_order = pd.read_excel(order_file, dtype=str) if order_file else None
 
-    # หา SKU col ในไฟล์ออเดอร์
     order_sku_col = None
     if df_order is not None:
         for col in ['Fscode', 'รหัสสินค้า', 'SKU', 'sku']:
@@ -68,7 +77,6 @@ def check_stock():
                 break
 
     all_yokro_skus = {it['sku'] for it in items}
-
     wb = openpyxl.Workbook()
     border = Border(left=Side(style='thin'), right=Side(style='thin'),
                     top=Side(style='thin'), bottom=Side(style='thin'))
@@ -92,7 +100,6 @@ def check_stock():
         cell.alignment = Alignment(horizontal="left" if left else "center", vertical="center", wrap_text=True)
         cell.border = border
 
-    # Sheet 1: เช็คสต็อก
     ws1 = wb.active
     ws1.title = "เช็คสต็อกยกรอ"
     ws1.freeze_panes = 'A2'
@@ -126,7 +133,6 @@ def check_stock():
     for ci,w in enumerate([8,14,38,8,8,8,12,12,18,28],1):
         ws1.column_dimensions[get_column_letter(ci)].width = w
 
-    # Sheet 2: Detail ออเดอร์
     if df_order is not None and order_sku_col:
         ws2 = wb.create_sheet("Detail ออเดอร์")
         ws2.freeze_panes = 'A2'
@@ -134,10 +140,7 @@ def check_stock():
         wfill = PatternFill("solid", start_color="FFFFFF", end_color="FFFFFF")
         ord_cols = list(df_order.columns) + ['หมายเหตุ']
         for ci,h in enumerate(ord_cols,1): hdr(ws2,1,ci,h)
-
-        # ทำ team map
         team_map = {it['sku']: it['team'] for it in items}
-
         for ri,(_, row) in enumerate(df_order.iterrows(),2):
             sku = str(row.get(order_sku_col,'')).strip()
             is_yokro = sku in all_yokro_skus
