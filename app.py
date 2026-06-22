@@ -253,33 +253,31 @@ def oos():
                 name=(name_col if name_col else sku_col, 'first')
             ).reset_index()
 
-        # --- คำนวณคงเหลือจริง = Total - Allowcate Unit ---
-        stock_map = {}
-        for _, r in df_stock.iterrows():
-            sku = str(r['Seller SKU'])
-            try:
-                total  = int(r['Total'])
-                alloc  = int(r['Allowcate Unit']) if pd.notna(r.get('Allowcate Unit')) else 0
-                remain = total - alloc
-                desc   = str(r['Description'])[:40]
-                stock_map[sku] = {'remain': remain, 'desc': desc}
-            except:
-                pass
+        # --- คำนวณคงเหลือจริง = Total - Allowcate Unit (vectorized) ---
+        df_stock['_sku']    = df_stock['Seller SKU'].astype(str)
+        df_stock['_total']  = pd.to_numeric(df_stock['Total'], errors='coerce').fillna(0).astype(int)
+        df_stock['_alloc']  = pd.to_numeric(df_stock['Allowcate Unit'], errors='coerce').fillna(0).astype(int)
+        df_stock['_remain'] = df_stock['_total'] - df_stock['_alloc']
+        df_stock['_desc']   = df_stock['Description'].astype(str).str[:40]
+        stock_df = df_stock[['_sku','_remain','_desc']].drop_duplicates('_sku').set_index('_sku')
+        stock_map = {sku: {'remain': int(row['_remain']), 'desc': row['_desc']}
+                     for sku, row in stock_df.iterrows()}
 
-        # --- ใบรับเข้า: หา SKU col และ status ---
+        # --- ใบรับเข้า (vectorized) ---
         recv_sku_col    = next((c for c in df_recv.columns if 'sku' in c.lower() or 'รหัส' in c.lower()), None)
         recv_status_col = next((c for c in df_recv.columns if 'สถานะ' in c.lower() or 'status' in c.lower()), None)
         recv_doc_col    = next((c for c in df_recv.columns if 'เลข' in c.lower() or 'เอกสาร' in c.lower() or 'doc' in c.lower()), None)
 
-        recv_map = {}  # sku -> {status, doc_no}
+        recv_map = {}
         if recv_sku_col:
-            for _, r in df_recv.iterrows():
-                sku    = str(r[recv_sku_col]).strip()
-                status = str(r[recv_status_col]).strip() if recv_status_col else ''
-                doc_no = str(r[recv_doc_col]).strip() if recv_doc_col else ''
+            df_recv['_rsku']   = df_recv[recv_sku_col].astype(str).str.strip()
+            df_recv['_status'] = df_recv[recv_status_col].astype(str).str.strip() if recv_status_col else ''
+            df_recv['_doc']    = df_recv[recv_doc_col].astype(str).str.strip() if recv_doc_col else ''
+            for row in df_recv[['_rsku','_status','_doc']].to_dict('records'):
+                sku = row['_rsku']
                 if sku not in recv_map:
                     recv_map[sku] = []
-                recv_map[sku].append({'status': status, 'doc_no': doc_no})
+                recv_map[sku].append({'status': row['_status'], 'doc_no': row['_doc']})
 
         # --- จัดกลุ่ม ---
         group_a, group_b, group_c, group_e = [], [], [], []
