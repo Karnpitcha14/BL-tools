@@ -223,7 +223,7 @@ def oos():
             return jsonify({"ok": False, "error": "ต้องอัปโหลดครบ 3 ไฟล์"})
 
         df_oos   = pd.read_excel(oos_file, dtype=str)
-        df_stock = pd.read_excel(stock_file, header=1, dtype={'Seller SKU': str})
+        df_stock = None  # จะโหลดทีหลังเฉพาะคอลัมน์ที่ต้องการ
         df_recv  = pd.read_excel(recv_file, dtype=str)
 
         # --- กรอง OOS: TikTok + Shopee เท่านั้น + ไม่ใช่ Preorder (ลงท้าย P) ---
@@ -253,15 +253,18 @@ def oos():
                 name=(name_col if name_col else sku_col, 'first')
             ).reset_index()
 
-        # --- คำนวณคงเหลือจริง = Total - Allowcate Unit (vectorized) ---
-        df_stock['_sku']    = df_stock['Seller SKU'].astype(str)
-        df_stock['_total']  = pd.to_numeric(df_stock['Total'], errors='coerce').fillna(0).astype(int)
-        df_stock['_alloc']  = pd.to_numeric(df_stock['Allowcate Unit'], errors='coerce').fillna(0).astype(int)
-        df_stock['_remain'] = df_stock['_total'] - df_stock['_alloc']
-        df_stock['_desc']   = df_stock['Description'].astype(str).str[:40]
-        stock_df = df_stock[['_sku','_remain','_desc']].drop_duplicates('_sku').set_index('_sku')
-        stock_map = {sku: {'remain': int(row['_remain']), 'desc': row['_desc']}
-                     for sku, row in stock_df.iterrows()}
+        # อ่านเฉพาะคอลัมน์ที่จำเป็น ประหยัด RAM
+        needed_cols = ['Seller SKU', 'Total', 'Allowcate Unit', 'Description']
+        df_stock = pd.read_excel(stock_file, header=1, dtype={'Seller SKU': str}, usecols=needed_cols)
+
+        # --- คำนวณคงเหลือจริง = Total - Allowcate Unit (vectorized ล้วน) ---
+        df_stock = df_stock.drop_duplicates('Seller SKU')
+        total  = pd.to_numeric(df_stock['Total'], errors='coerce').fillna(0).astype(int)
+        alloc  = pd.to_numeric(df_stock['Allowcate Unit'], errors='coerce').fillna(0).astype(int)
+        remain = (total - alloc).tolist()
+        descs  = df_stock['Description'].astype(str).str[:40].tolist()
+        skus   = df_stock['Seller SKU'].tolist()
+        stock_map = {s: {'remain': r, 'desc': d} for s, r, d in zip(skus, remain, descs)}
 
         # --- ใบรับเข้า (vectorized) ---
         recv_sku_col    = next((c for c in df_recv.columns if 'sku' in c.lower() or 'รหัส' in c.lower()), None)
