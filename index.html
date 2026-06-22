@@ -155,18 +155,9 @@
       <div class="t-label">เช็คยกรอ<span class="t-sub">AvailableStock</span></div>
     </button>
 
-    <div class="sidebar-section">กำลังพัฒนา</div>
-    <button class="tool-btn" style="opacity:0.5;cursor:default">
-      <div class="t-icon">📋</div>
-      <div class="t-label">Claim จัดการ<span class="t-sub">เร็วๆ นี้</span></div>
-    </button>
-    <button class="tool-btn" style="opacity:0.5;cursor:default">
-      <div class="t-icon">🚚</div>
-      <div class="t-label">ติดตามออเดอร์<span class="t-sub">เร็วๆ นี้</span></div>
-    </button>
-    <button class="tool-btn" style="opacity:0.5;cursor:default">
-      <div class="t-icon">📊</div>
-      <div class="t-label">รายงานสต็อก<span class="t-sub">เร็วๆ นี้</span></div>
+    <button class="tool-btn" onclick="showPage('oos')">
+      <div class="t-icon">🔔</div>
+      <div class="t-label">แจ้ง OOS<span class="t-sub">สร้างข้อความ LINE</span></div>
     </button>
   </aside>
 
@@ -185,23 +176,11 @@
           <div class="hc-sub">วางข้อความจาก LINE แล้วระบบจะสร้างไฟล์ Excel สรุปยกรอให้อัตโนมัติ</div>
           <div class="hc-tag">พร้อมใช้งาน</div>
         </div>
-        <div class="home-card" style="opacity:0.6;cursor:default">
-          <div class="hc-icon">📋</div>
-          <div class="hc-title">Claim จัดการ</div>
-          <div class="hc-sub">ระบบจัดการ Claim สินค้าและติดตามสถานะ</div>
-          <div class="hc-tag" style="background:#f5f5f5;color:#aaa">เร็วๆ นี้</div>
-        </div>
-        <div class="home-card" style="opacity:0.6;cursor:default">
-          <div class="hc-icon">🚚</div>
-          <div class="hc-title">ติดตามออเดอร์</div>
-          <div class="hc-sub">เช็คสถานะออเดอร์และ Tracking แบบ batch</div>
-          <div class="hc-tag" style="background:#f5f5f5;color:#aaa">เร็วๆ นี้</div>
-        </div>
-        <div class="home-card" style="opacity:0.6;cursor:default">
-          <div class="hc-icon">📊</div>
-          <div class="hc-title">รายงานสต็อก</div>
-          <div class="hc-sub">สรุปสต็อกรายวัน/รายสัปดาห์อัตโนมัติ</div>
-          <div class="hc-tag" style="background:#f5f5f5;color:#aaa">เร็วๆ นี้</div>
+        <div class="home-card" onclick="showPage('oos')">
+          <div class="hc-icon">🔔</div>
+          <div class="hc-title">แจ้ง OOS</div>
+          <div class="hc-sub">อัปโหลด 3 ไฟล์ ระบบสร้างข้อความ LINE แจ้งทีมที่เกี่ยวข้องอัตโนมัติ</div>
+          <div class="hc-tag">พร้อมใช้งาน</div>
         </div>
       </div>
     </div>
@@ -272,6 +251,81 @@
 
     </div>
 
+    <!-- OOS PAGE -->
+    <div id="page-oos" style="display:none">
+      <div class="page-header">
+        <h1>🔔 แจ้ง OOS</h1>
+        <p>อัปโหลด 3 ไฟล์ → ระบบสร้างข้อความ LINE แจ้งทีมที่เกี่ยวข้องอัตโนมัติ</p>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><div class="dot"></div>ไฟล์ข้อมูล (3 ไฟล์)</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+          <div class="upload-zone" id="zone-oos">
+            <input type="file" id="file-oos" accept=".xlsx,.xls" onchange="handleOOSFile(this,'oos')">
+            <div class="upload-icon">📂</div>
+            <div class="upload-label">ไฟล์ OOS</div>
+            <div class="upload-sub">OOS *.xlsx</div>
+          </div>
+          <div class="upload-zone" id="zone-oosstock">
+            <input type="file" id="file-oosstock" accept=".xlsx,.xls" onchange="handleOOSFile(this,'oosstock')">
+            <div class="upload-icon">📂</div>
+            <div class="upload-label">AvailableStock</div>
+            <div class="upload-sub">AvailableStock *.xlsx</div>
+          </div>
+          <div class="upload-zone" id="zone-receive">
+            <input type="file" id="file-receive" accept=".xlsx,.xls" onchange="handleOOSFile(this,'receive')">
+            <div class="upload-icon">📂</div>
+            <div class="upload-label">ใบรับเข้า</div>
+            <div class="upload-sub">ใบรับเข้า *.xlsx</div>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn-generate" id="btn-oos" onclick="generateOOS()" disabled>
+        <svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.39 2 2 0 0 1 3.6 1.21h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.69a16 16 0 0 0 6 6l.96-.96a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+        สร้างข้อความ LINE
+      </button>
+
+      <div class="loading" id="loading-oos" style="display:none">
+        <div class="spinner"></div>
+        <div style="font-size:13px;color:#aaa">กำลังวิเคราะห์...</div>
+      </div>
+
+      <div id="oos-result" style="display:none">
+        <div style="font-size:13px;font-weight:700;color:#555;margin-bottom:12px;">📋 ข้อความพร้อมส่ง LINE</div>
+
+        <div class="card" id="block-a" style="display:none">
+          <div class="card-title"><div class="dot" style="background:#1976D2"></div>บล็อก A — แจ้ง @เค @อาร์ม (มีใบรับเข้าใหม่)</div>
+          <textarea id="text-a" style="width:100%;min-height:120px;border:1px solid #f0d0da;border-radius:8px;padding:10px;font-size:13px;font-family:inherit;resize:vertical;background:#f9f9f9" readonly></textarea>
+          <button onclick="copyText('text-a')" style="margin-top:8px;padding:6px 16px;border:1.5px solid #E91E63;color:#E91E63;background:#fff;border-radius:8px;font-size:12px;cursor:pointer;font-weight:600">📋 Copy</button>
+        </div>
+
+        <div class="card" id="block-b" style="display:none">
+          <div class="card-title"><div class="dot" style="background:#388E3C"></div>บล็อก B — แจ้ง @เค @อาร์ม (รับเข้าแล้ว เบิกด่วน)</div>
+          <textarea id="text-b" style="width:100%;min-height:100px;border:1px solid #f0d0da;border-radius:8px;padding:10px;font-size:13px;font-family:inherit;resize:vertical;background:#f9f9f9" readonly></textarea>
+          <button onclick="copyText('text-b')" style="margin-top:8px;padding:6px 16px;border:1.5px solid #E91E63;color:#E91E63;background:#fff;border-radius:8px;font-size:12px;cursor:pointer;font-weight:600">📋 Copy</button>
+        </div>
+
+        <div class="card" id="block-c" style="display:none">
+          <div class="card-title"><div class="dot" style="background:#D32F2F"></div>บล็อก C — แจ้งพี่ป๊อก (ของหมด ไม่มีใบ)</div>
+          <textarea id="text-c" style="width:100%;min-height:100px;border:1px solid #f0d0da;border-radius:8px;padding:10px;font-size:13px;font-family:inherit;resize:vertical;background:#f9f9f9" readonly></textarea>
+          <button onclick="copyText('text-c')" style="margin-top:8px;padding:6px 16px;border:1.5px solid #E91E63;color:#E91E63;background:#fff;border-radius:8px;font-size:12px;cursor:pointer;font-weight:600">📋 Copy</button>
+        </div>
+
+        <div class="card" id="block-e" style="display:none">
+          <div class="card-title"><div class="dot" style="background:#F57C00"></div>บล็อก E — แจ้งพี่ป๊อก (ของไม่พอ ไม่มีใบ)</div>
+          <textarea id="text-e" style="width:100%;min-height:100px;border:1px solid #f0d0da;border-radius:8px;padding:10px;font-size:13px;font-family:inherit;resize:vertical;background:#f9f9f9" readonly></textarea>
+          <button onclick="copyText('text-e')" style="margin-top:8px;padding:6px 16px;border:1.5px solid #E91E63;color:#E91E63;background:#fff;border-radius:8px;font-size:12px;cursor:pointer;font-weight:600">📋 Copy</button>
+        </div>
+
+        <div class="card" id="block-none" style="display:none;background:#F1F8E9;border-color:#A5D6A7">
+          <div style="color:#2E7D32;font-size:14px;font-weight:700;">✅ ไม่มีรายการที่ต้องแจ้ง — สต็อกพอทุก SKU</div>
+        </div>
+      </div>
+      <div class="error-box" id="oos-error"></div>
+    </div>
+
   </main>
 </div>
 
@@ -280,17 +334,86 @@
   let stockFile = null;
   let orderFile = null;
 
+  let oosFiles = {oos: null, oosstock: null, receive: null};
+
   // Set date
   const d = new Date();
   document.getElementById('nav-date').textContent =
     d.toLocaleDateString('th-TH', {day:'2-digit',month:'2-digit',year:'numeric'});
 
   function showPage(name) {
-    ['home','yokro'].forEach(p => {
+    ['home','yokro','oos'].forEach(p => {
       document.getElementById('page-'+p).style.display = p===name ? 'block' : 'none';
     });
     document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
     event.currentTarget && event.currentTarget.classList.add('active');
+  }
+
+  function handleOOSFile(input, type) {
+    const file = input.files[0];
+    if (!file) return;
+    oosFiles[type] = file;
+    const zone = document.getElementById('zone-'+type);
+    zone.classList.add('done');
+    zone.querySelector('.upload-icon').textContent = '✅';
+    zone.querySelector('.upload-label').textContent = file.name.length > 18 ? file.name.slice(0,18)+'…' : file.name;
+    zone.querySelector('.upload-sub').textContent = (file.size/1024).toFixed(0) + ' KB';
+    if (oosFiles.oos && oosFiles.oosstock && oosFiles.receive) {
+      document.getElementById('btn-oos').disabled = false;
+    }
+  }
+
+  async function generateOOS() {
+    document.getElementById('loading-oos').style.display = 'block';
+    document.getElementById('oos-result').style.display = 'none';
+    document.getElementById('oos-error').classList.remove('show');
+    document.getElementById('btn-oos').disabled = true;
+
+    const form = new FormData();
+    form.append('oos', oosFiles.oos);
+    form.append('stock', oosFiles.oosstock);
+    form.append('receive', oosFiles.receive);
+
+    try {
+      const res = await fetch('/api/oos', { method: 'POST', body: form });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || 'Server error');
+
+      const { blockA, blockB, blockC, blockE } = data;
+      document.getElementById('oos-result').style.display = 'block';
+
+      const showBlock = (id, textId, content) => {
+        if (content) {
+          document.getElementById(id).style.display = 'block';
+          document.getElementById(textId).value = content;
+        } else {
+          document.getElementById(id).style.display = 'none';
+        }
+      };
+
+      showBlock('block-a','text-a', blockA);
+      showBlock('block-b','text-b', blockB);
+      showBlock('block-c','text-c', blockC);
+      showBlock('block-e','text-e', blockE);
+
+      const hasAny = blockA || blockB || blockC || blockE;
+      document.getElementById('block-none').style.display = hasAny ? 'none' : 'block';
+
+    } catch(e) {
+      const errBox = document.getElementById('oos-error');
+      errBox.textContent = 'เกิดข้อผิดพลาด: ' + e.message;
+      errBox.classList.add('show');
+    } finally {
+      document.getElementById('loading-oos').style.display = 'none';
+      document.getElementById('btn-oos').disabled = false;
+    }
+  }
+
+  function copyText(id) {
+    const el = document.getElementById(id);
+    el.select();
+    document.execCommand('copy');
+    alert('Copy แล้วค่ะ!');
   }
 
   function handleFile(input, type) {
