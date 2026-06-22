@@ -1,6 +1,8 @@
 services:
   - type: web
-    name: bl-tools
+    name: bl-tools-1
     runtime: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app
+    startCommand: gunicorn app:app --timeout 120
+      - key: ANTHROPIC_API_KEY
+        sync: false
