@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ใบนับสต๊อก P&amp;G — BL Tools</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#1B1F24; --muted:#5B6570; --steel:#1F3A5F; --line:#D5DBE1;
+    --surface:#EEF1F4; --paper:#FFFFFF; --fill:#FFF3C4; --fill-edge:#E2B93B; --err:#B3261E;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"IBM Plex Sans Thai",Tahoma,sans-serif;color:var(--ink);
+       background:var(--surface);line-height:1.6}
+  main{max-width:680px;margin:0 auto;padding:40px 20px 64px}
+  a.back{color:var(--muted);text-decoration:none;font-size:14px}
+  a.back:hover{color:var(--steel)}
+  h1{font-size:30px;line-height:1.25;margin:12px 0 4px;color:var(--steel)}
+  p.lead{margin:0 0 24px;color:var(--muted)}
+  ol.flow{list-style:none;margin:0 0 28px;padding:0;display:grid;grid-template-columns:repeat(4,1fr);
+       border:1px solid var(--line);border-radius:6px;background:var(--paper);font-size:13px}
+  ol.flow li{padding:10px 12px;border-left:1px solid var(--line);color:var(--muted)}
+  ol.flow li:first-child{border-left:0}
+  ol.flow b{display:block;color:var(--steel);font-size:14px}
+  section{background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:26px 28px;margin-bottom:20px}
+  h2{font-size:19px;margin:0 0 4px;color:var(--steel);display:flex;gap:10px;align-items:baseline}
+  h2 .n{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;
+       background:var(--steel);color:#fff;font-size:14px;flex:none}
+  p.sub{margin:0 0 20px;color:var(--muted);font-size:14px}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .field{margin-bottom:18px}
+  label{display:block;font-weight:500;margin-bottom:6px}
+  .hint{display:block;font-size:13px;color:var(--muted);margin-top:4px}
+  input,select{width:100%;font:inherit;padding:9px 11px;border:1px solid var(--fill-edge);
+       background:var(--fill);border-radius:4px;color:var(--ink)}
+  input[type=file]{padding:8px}
+  input:focus,select:focus,summary:focus,button:focus{outline:3px solid var(--steel);outline-offset:2px}
+  details{margin:2px 0 22px;font-size:15px}
+  summary{cursor:pointer;color:var(--steel);font-weight:500}
+  details .field{margin:14px 0 0}
+  button{width:100%;font:inherit;font-weight:700;font-size:17px;padding:12px;border:0;border-radius:4px;
+       background:var(--steel);color:#fff;cursor:pointer}
+  button:hover{background:#16304F}
+  button[disabled]{opacity:.6;cursor:wait}
+  .error{border-left:4px solid var(--err);background:#FCEDEC;color:var(--err);padding:12px 14px;
+       margin-bottom:20px;border-radius:0 4px 4px 0}
+  ul.rules{margin:0 0 20px;padding-left:20px;font-size:14px;color:var(--muted)}
+  @media (max-width:560px){.row,ol.flow{grid-template-columns:1fr}
+       ol.flow li{border-left:0;border-top:1px solid var(--line)} ol.flow li:first-child{border-top:0}}
+</style>
+</head>
+<body>
+<main>
+  <a class="back" href="/">กลับหน้า BL Tools</a>
+  <h1>ใบตรวจนับสต๊อก P&amp;G</h1>
+  <p class="lead">ออกใบนับเป็นรายวัน กรอกยอดที่นับได้ แล้วเทียบกับยอดตั้งต้น บรรทัดที่ Diff จะออกใบนับครั้งที่ 2 และ 3 ให้นับซ้ำ</p>
+
+  <ol class="flow" aria-label="ขั้นตอน">
+    <li><b>สร้างใบนับ</b>ครั้งที่ 1 จาก Stock ตั้งต้น</li>
+    <li><b>นับและกรอก</b>ยอดตรวจนับลงในไฟล์</li>
+    <li><b>อัปโหลดผล</b>ได้ใบนับครั้งถัดไปเฉพาะบรรทัดที่ Diff</li>
+    <li><b>สรุปผล</b>เมื่อตรงหมดหรือนับครบ 3 ครั้ง</li>
+  </ol>
+
+  <section>
+    <h2><span class="n">1</span>สร้างใบนับครั้งที่ 1</h2>
+    <p class="sub">อัปโหลด Stock ตั้งต้นของวัน แล้วเลือก Day ตามแผน 30 วัน</p>
+    <form method="post" action="{{ url_for('count_sheet.index') }}" enctype="multipart/form-data">
+      {% if error and error_in == 'new' %}<div class="error" role="alert">{{ error }}</div>{% endif %}
+      <div class="row">
+        <div class="field">
+          <label for="day">Day ที่นับ</label>
+          <select id="day" name="day">
+            {% for d in days %}
+            <option value="{{ d }}" {% if d|string == form.day|string %}selected{% endif %}>
+              Day {{ d }}{% if sku_count.get(d) %} ({{ sku_count[d] }} SKU){% endif %}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="date">วันที่นับ</label>
+          <input type="date" id="date" name="date" value="{{ form.date }}" required>
+        </div>
+      </div>
+      <div class="field">
+        <label for="stock_mc">Stock MC (.xlsx)</label>
+        <input type="file" id="stock_mc" name="stock_mc" accept=".xlsx" required>
+        <span class="hint">ไฟล์จากระบบที่มีคอลัมน์ Sku, Loc, Lpn, Lot, Qty</span>
+      </div>
+      <div class="field">
+        <label for="stock_fo">Stock FO (.xlsx)</label>
+        <input type="file" id="stock_fo" name="stock_fo" accept=".xlsx" required>
+        <span class="hint">ไฟล์จากระบบที่มีคอลัมน์ Seller Item Code, Sh Qty, Location No.</span>
+      </div>
+      <details>
+        <summary>ใช้แผนนับจากไฟล์ Cycle อื่น</summary>
+        <div class="field">
+          <label for="cycle">ไฟล์ Cycle Check (.xlsx)</label>
+          <input type="file" id="cycle" name="cycle" accept=".xlsx">
+          <span class="hint">เว้นว่าง = ใช้แผนที่ตั้งไว้ในระบบ ใส่ไฟล์เมื่อเปลี่ยนรอบแผน (อ่านชีต ชนสต็อก_SKU)</span>
+        </div>
+      </details>
+      <button type="submit">สร้างใบนับครั้งที่ 1</button>
+    </form>
+  </section>
+
+  <section>
+    <h2><span class="n">2</span>อัปโหลดใบนับที่กรอกยอดแล้ว</h2>
+    <p class="sub">กรอกตัวเลขในคอลัมน์ "ยอดตรวจนับ" ของไฟล์ที่ดาวน์โหลดจากหน้านี้ แล้วอัปโหลดกลับ</p>
+    <ul class="rules">
+      <li>บรรทัดที่ยอดนับไม่ตรงกับยอดตั้งต้น จะออกเป็นใบนับครั้งที่ 2 (ฟอร์มเดิม) เฉพาะบรรทัดนั้น ครั้งที่ 2 ยังไม่ตรงก็ออกครั้งที่ 3</li>
+      <li>MC กับ FO แยกกันได้ นับโซนไหนเสร็จก่อนก็กรอกแล้วอัปโหลดได้เลย ชีตที่ยังไม่กรอกจะติดไปในไฟล์ใหม่</li>
+      <li>ไม่มีใบนับค้างแล้ว ได้รายงานสรุปผลการนับประจำวันฉบับสุดท้าย</li>
+      <li>ไม่มีของที่ Location ไหน ให้กรอก 0 ห้ามเว้นว่าง และห้ามแทรก ลบ หรือสลับแถว</li>
+    </ul>
+    <form method="post" action="{{ url_for('count_sheet.result') }}" enctype="multipart/form-data">
+      {% if error and error_in == 'result' %}<div class="error" role="alert">{{ error }}</div>{% endif %}
+      <div class="field">
+        <label for="counted">ใบนับที่กรอกยอดแล้ว (.xlsx)</label>
+        <input type="file" id="counted" name="counted" accept=".xlsx" required>
+        <span class="hint">ใช้ได้ทั้งใบนับครั้งที่ 1, 2 และ 3 ระบบรู้เองว่าเป็นครั้งไหน</span>
+      </div>
+      <button type="submit">ชนสต็อกและออก Report</button>
+    </form>
+  </section>
+</main>
+<script>
+  document.querySelectorAll('form').forEach(function(f){
+    f.addEventListener('submit', function(){
+      var b=f.querySelector('button'), t=b.textContent; b.textContent='กำลังประมวลผล…';
+      setTimeout(function(){ b.disabled=true; }, 0);
+      setTimeout(function(){ b.disabled=false; b.textContent=t; }, 8000);
+    });
+  });
+</script>
+</body>
+</html>
