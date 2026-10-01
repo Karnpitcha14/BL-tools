@@ -123,6 +123,10 @@
   .error-box { background: #FFEBEE; border: 1px solid #EF9A9A; border-radius: 10px; padding: 12px 14px; color: #B71C1C; font-size: 13px; display: none; margin-top: 10px; }
   .error-box.show { display: block; }
 
+  /* ลิงก์ที่หน้าตาเป็นปุ่ม/การ์ด (ใช้กับเมนูใบนับสต๊อก) */
+  a.tool-btn, a.home-card { text-decoration: none; }
+  a.home-card { display: block; }
+
   @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap');
 </style>
 </head>
@@ -159,6 +163,12 @@
       <div class="t-icon">🔔</div>
       <div class="t-label">แจ้ง OOS<span class="t-sub">สร้างข้อความ LINE</span></div>
     </button>
+
+    <a class="tool-btn" href="/count-sheet/">
+      <div class="t-icon">📋</div>
+      <div class="t-label">ใบนับสต๊อก P&amp;G<span class="t-sub">Cycle Count</span></div>
+      <span class="badge-new">ใหม่</span>
+    </a>
   </aside>
 
   <main class="main">
@@ -182,6 +192,12 @@
           <div class="hc-sub">อัปโหลด 3 ไฟล์ ระบบสร้างข้อความ LINE แจ้งทีมที่เกี่ยวข้องอัตโนมัติ</div>
           <div class="hc-tag">พร้อมใช้งาน</div>
         </div>
+        <a class="home-card" href="/count-sheet/">
+          <div class="hc-icon">📋</div>
+          <div class="hc-title">ใบนับสต๊อก P&amp;G</div>
+          <div class="hc-sub">ออกใบนับรายวันตามแผน 30 วัน กรอกยอดที่นับได้ แล้วออกใบนับซ้ำเฉพาะบรรทัดที่ Diff พร้อมสรุปผล</div>
+          <div class="hc-tag">ใหม่</div>
+        </a>
       </div>
     </div>
 
@@ -348,6 +364,13 @@
     document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
     event.currentTarget && event.currentTarget.classList.add('active');
   }
+
+  // เปิดหน้าตาม # ในลิงก์ เช่น /#oos (ใช้ตอนกดเมนูกลับมาจากหน้าใบนับสต๊อก)
+  (function () {
+    const p = location.hash.replace('#', '');
+    const btn = document.querySelector(`button.tool-btn[onclick="showPage('${p}')"]`);
+    if (btn) btn.click();
+  })();
 
   function handleOOSFile(input, type) {
     const file = input.files[0];

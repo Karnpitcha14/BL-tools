@@ -12,6 +12,7 @@ import copy
 import io
 import json
 import os
+import re
 from datetime import date
 
 import openpyxl
@@ -100,6 +101,30 @@ def load_plan(cycle_file=None):
 
 
 # ======================= สร้างรายการนับ =======================
+GROUND, UPPER = "ชั้น 1", "ชั้น 2-8"
+GROUP_NOTE = {GROUND: "ชั้น 1 (เดินนับ)", UPPER: "ชั้น 2-8 (โฟล์คลิฟท์)"}
+_LOC_RE = re.compile(r"^([A-Z]+\d{2})(\d{2})(\d{2})$")   # A453701 = แถว A45 / ล็อค 37 / ชั้น 01
+
+
+def _mc_loc_parts(loc):
+    m = _LOC_RE.match(str(loc or "").strip().upper())
+    return (m.group(1), int(m.group(2)), int(m.group(3))) if m else None
+
+
+def mc_group(loc):
+    """ชั้น 1 = เดินนับ, ชั้น 2 ขึ้นไป = ใช้โฟล์คลิฟท์ (Loc รูปแบบอื่น เช่น PICKTO ถือเป็นชั้น 1)"""
+    parts = _mc_loc_parts(loc)
+    return UPPER if parts and parts[2] >= 2 else GROUND
+
+
+def _mc_sort_key(r):
+    loc, lpn = str(r.get("Loc") or ""), str(r.get("Lpn") or "")
+    parts = _mc_loc_parts(loc)
+    if not parts:                      # Loc พิเศษ ไว้ท้ายกลุ่มชั้น 1
+        return (0, 1, loc, 0, 0, lpn)
+    row, bay, level = parts
+    return (0 if level == 1 else 1, 0, row, bay, level, lpn)
+
 def build_lines(day, plan, mc_stock, fo_stock):
     skus = plan.get(day)
     if not skus:
@@ -108,9 +133,10 @@ def build_lines(day, plan, mc_stock, fo_stock):
     fo_loc = {_sku_text(r["Seller Item Code"]): r.get("Location No.") or "" for r in fo_stock}
 
     mc = [r for r in mc_stock if _sku_text(r["Sku"]) in sku_set]
-    mc.sort(key=lambda r: (str(r.get("Loc") or ""), str(r.get("Lpn") or "")))
+    mc.sort(key=_mc_sort_key)        # ชั้น 1 ก่อน (แถว→ล็อค) แล้วชั้น 2-8 (แถว→ล็อค→ชั้น)
     fo = [r for r in fo_stock if _sku_text(r["Seller Item Code"]) in sku_set]
-    fo.sort(key=lambda r: (not r.get("Location No."), str(r.get("Location No.") or "")))
+    fo.sort(key=lambda r: (not r.get("Station"), str(r.get("Station") or ""),
+                           str(r.get("Location No.") or "")))   # เรียงตาม Station
 
     lines = []
     for r in mc:
@@ -143,9 +169,9 @@ def _data_row(i):
     return FIRST_DATA_ROW + BLOCK * p + k
 
 
-def _add_form(wb, form, zone, lines, meta, round_no):
+def _add_form(wb, form, zone, lines, meta, round_no, group=None):
     ws = wb.copy_worksheet(form)
-    ws.title = f"ใบนับ {zone} ครั้งที่{round_no}"
+    ws.title = f"ใบนับ {zone} {group} ครั้งที่{round_no}" if group else f"ใบนับ {zone} ครั้งที่{round_no}"
     ws.sheet_view.showGridLines = form.sheet_view.showGridLines
     ws.page_setup.orientation = "landscape"
     ws.page_setup.paperSize = 9
@@ -171,7 +197,7 @@ def _add_form(wb, form, zone, lines, meta, round_no):
     ws["C10"] = SELLER
     ws["D10"] = SELLER_NAME
     ws["L10"] = meta["doc_no"]
-    ws["C11"] = ZONE_NAME
+    ws["C11"] = f"{ZONE_NAME} — {GROUP_NOTE[group]}" if group else ZONE_NAME
     ws["L11"] = STATION_DEFAULT[zone]
     ws["C12"] = f"{meta['date']}  (Day {meta['day']})"
     ws["L12"] = zone
@@ -439,19 +465,19 @@ def _add_line_sheet(wb, lines, meta):
 
 # ======================= ประกอบไฟล์ =======================
 def _assemble(meta, lines, forms, report):
-    """forms = [(zone, round, [ids])]  report = ใส่ชีตสรุปหรือไม่"""
+    """forms = [(zone, round, [ids], group)]  report = ใส่ชีตสรุปหรือไม่"""
     wb = openpyxl.load_workbook(TEMPLATE_PATH)
     form = wb["FORM"]
     by_id = {ln["id"]: ln for ln in lines}
     meta = dict(meta, sheets={})
     info = []
-    for zone, rnd, ids in forms:
-        title, pages = _add_form(wb, form, zone, [by_id[i] for i in ids], meta, rnd)
-        meta["sheets"][title] = {"zone": zone, "round": rnd, "ids": ids}
-        info.append({"zone": zone, "round": rnd, "lines": len(ids), "pages": pages})
+    for zone, rnd, ids, group in forms:
+        title, pages = _add_form(wb, form, zone, [by_id[i] for i in ids], meta, rnd, group)
+        meta["sheets"][title] = {"zone": zone, "round": rnd, "ids": ids, "group": group}
+        info.append({"zone": zone, "group": group, "round": rnd, "lines": len(ids), "pages": pages})
     del wb["FORM"]
     if report:
-        pending = {i for _, rnd, ids in forms if rnd > 1 for i in ids}
+        pending = {i for _, rnd, ids, _g in forms if rnd > 1 for i in ids}
         _add_summary_sheet(wb, lines, pending, meta, final=not forms)
         _add_line_sheet(wb, lines, meta)
     _write_state(wb, meta, lines)
@@ -467,9 +493,11 @@ def generate(day, count_date, mc_file, fo_file, cycle_file=None, round_no=1):
         raise CountSheetError("วันที่นับไม่ถูกต้อง")
     plan = load_plan(cycle_file)
     lines = build_lines(day, plan, read_stock_mc(mc_file), read_stock_fo(fo_file))
-    meta = {"version": 2, "day": day, "date": f"{count_date:%d/%m/%Y}",
+    meta = {"version": 3, "day": day, "date": f"{count_date:%d/%m/%Y}",
             "doc_no": f"PG{count_date:%d%m%Y}"}
-    forms = [(z, 1, [ln["id"] for ln in lines if ln["zone"] == z]) for z in ("MC", "FO")]
+    forms = [("MC", 1, [ln["id"] for ln in lines if ln["zone"] == "MC" and mc_group(ln["loc"]) == g], g)
+             for g in (GROUND, UPPER)]
+    forms.append(("FO", 1, [ln["id"] for ln in lines if ln["zone"] == "FO"], None))
     forms = [f for f in forms if f[2]]
     data, info = _assemble(meta, lines, forms, report=False)
     return data, {"day": day, "date": meta["date"], "forms": info}
@@ -479,7 +507,7 @@ def process_counted(file):
     """รับใบนับที่กรอกยอดแล้ว คืน (bytes xlsx, info)"""
     wb = openpyxl.load_workbook(file, data_only=True)
     meta, lines = _read_state(wb)
-    if meta.get("version") != 2:
+    if meta.get("version") != 3:
         raise CountSheetError("ไฟล์นี้ออกจากเวอร์ชันเก่า — สร้างใบนับครั้งที่ 1 ใหม่จากหน้านี้")
     if not meta.get("sheets"):
         raise CountSheetError("ไฟล์นี้เป็นสรุปผลฉบับสุดท้ายแล้ว ไม่มีใบนับให้กรอก")
@@ -506,7 +534,7 @@ def process_counted(file):
                 vals.append(None)
                 bad.append(f"{title} ลำดับ {i + 1}")
         if all(v is None for v in vals) and not any(b.startswith(title) for b in bad):
-            next_forms.append((s["zone"], rnd, ids))      # ยังไม่ได้นับ ส่งต่อ
+            next_forms.append((s["zone"], rnd, ids, s.get("group")))   # ยังไม่ได้นับ ส่งต่อ
             continue
         missing += [f"{title} ลำดับ {i + 1} ({by_id[lid]['loc']})"
                     for i, (lid, v) in enumerate(zip(ids, vals)) if v is None]
@@ -514,9 +542,10 @@ def process_counted(file):
             if v is not None:
                 by_id[lid][f"c{rnd}"] = v
         diff_ids = [lid for lid in ids if by_id[lid][f"c{rnd}"] != by_id[lid]["sys"]]
-        counted.append({"zone": s["zone"], "round": rnd, "lines": len(ids), "diff": len(diff_ids)})
+        counted.append({"zone": s["zone"], "group": s.get("group"), "round": rnd,
+                        "lines": len(ids), "diff": len(diff_ids)})
         if diff_ids and rnd < MAX_ROUNDS:
-            next_forms.append((s["zone"], rnd + 1, diff_ids))
+            next_forms.append((s["zone"], rnd + 1, diff_ids, s.get("group")))
 
     if bad:
         raise CountSheetError("ยอดตรวจนับต้องเป็นจำนวนเต็มไม่ติดลบ: " + ", ".join(bad[:8])
@@ -527,6 +556,6 @@ def process_counted(file):
     if not counted:
         raise CountSheetError("ยังไม่ได้กรอกยอดตรวจนับในใบนับชีตไหนเลย")
 
-    next_forms.sort(key=lambda f: (f[0] != "MC", f[1]))
+    next_forms.sort(key=lambda f: (f[0] != "MC", f[3] != GROUND, f[1]))
     data, info = _assemble(meta, lines, next_forms, report=True)
     return data, {"day": meta["day"], "date": meta["date"], "counted": counted, "forms": info}

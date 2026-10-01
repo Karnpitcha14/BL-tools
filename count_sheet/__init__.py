@@ -85,7 +85,8 @@ def result():
         data, info = process_counted(io.BytesIO(f.read()))
         d = info["date"].replace("/", "-")
         if info["forms"]:
-            parts = "_".join(f"{f['zone']}ครั้งที่{f['round']}" for f in info["forms"])
+            parts = "_".join(f"{f['zone']}{(f['group'] or '').replace(' ', '')}ครั้งที่{f['round']}"
+                             for f in info["forms"])
             name = f"ใบนับ_PG_{d}_Day{info['day']}_{parts}.xlsx"
         else:
             name = f"สรุปผลนับ_PG_{d}_Day{info['day']}.xlsx"
