@@ -11,6 +11,9 @@ import sys
 
 app = Flask(__name__)
 
+from count_sheet import bp as count_sheet_bp
+app.register_blueprint(count_sheet_bp)
+
 def get_html():
     if hasattr(sys, '_MEIPASS'):
         path = os.path.join(sys._MEIPASS, 'index.html')
